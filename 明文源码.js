@@ -1872,34 +1872,24 @@ async function 整理(内容) {
 	return 地址数组;
 }
 async function sendMessage(type, ip, add_data = "") {
-  if (!env.TGTOKEN || !env.TGID) {
-    console.error('Telegram 配置未设置，请设置 TGTOKEN 和 TGID 环境变量');
+  if (!BotToken || !ChatID) {
+    console.error('Telegram 配置未设置');
     return;
   }
-  // 使用环境变量中的 TG_SECRET，如果未设置则使用默认值
-  const secret = env.TG_SECRET || 'default-secret'; // 确保在 fetch 中已定义，或直接在此处使用 env.TG_SECRET
+  const secret = TG_SECRET || 'default-secret';
   try {
     let msg = "";
-    const response = await fetch(`https://ip-api.com/json/${ip}?lang=zh-CN`); // 强制 HTTPS
+    const response = await fetch(`https://ip-api.com/json/${ip}?lang=zh-CN`);
     if (response.ok) {
       const ipInfo = await response.json();
       msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
     } else {
       msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
     }
-
-    // 生成 HMAC 签名
     const hmac = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg + secret));
     const signature = Array.from(new Uint8Array(hmac)).map(b => b.toString(16).padStart(2, '0')).join('');
-    const url = `https://api.telegram.org/bot${env.TGTOKEN}/sendMessage?chat_id=${env.TGID}&parse_mode=HTML&text=${encodeURIComponent(msg)}&signature=${signature}`;
-    return fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
-      }
-    });
+    const url = `https://api.telegram.org/bot${BotToken}/sendMessage?chat_id=${ChatID}&parse_mode=HTML&text=${encodeURIComponent(msg)}&signature=${signature}`;
+    await fetch(url);
   } catch (error) {
     console.error('Error sending message:', error);
   }
