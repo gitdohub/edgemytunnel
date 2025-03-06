@@ -11,7 +11,6 @@ let subEmoji = 'true';
 let socks5Address = '';
 let parsedSocks5Address = {};
 let enableSocks = false;
-
 let noTLS = 'false';
 const expire = 4102329600;//2099-12-31
 let proxyIPs;
@@ -32,6 +31,7 @@ let remarkIndex = 1;//CSV备注所在列偏移量
 let FileName = atob('ZWRnZXR1bm5lbA==');
 let BotToken; //xiugaizheli 
 let ChatID;
+let TG_SECRET;
 let proxyhosts = [];
 let proxyhostsURL = '';
 let RproxyIP = 'false';
@@ -121,6 +121,7 @@ export default {
 				remarkIndex = Number(env.CSVREMARK) || remarkIndex;
 				BotToken = env.TGTOKEN || BotToken;
 				ChatID = env.TGID || ChatID;
+				TG_SECRET = env.TG_SECRET || TG_SECRET;
 				FileName = env.SUBNAME || FileName;
 				subEmoji = env.SUBEMOJI || env.EMOJI || subEmoji;
 				if (subEmoji == '0') subEmoji = 'false';
@@ -1870,33 +1871,41 @@ async function 整理(内容) {
 
 	return 地址数组;
 }
-
 async function sendMessage(type, ip, add_data = "") {
-	if (!BotToken || !ChatID) return;
+  if (!env.TGTOKEN || !env.TGID) {
+    console.error('Telegram 配置未设置，请设置 TGTOKEN 和 TGID 环境变量');
+    return;
+  }
+  // 使用环境变量中的 TG_SECRET，如果未设置则使用默认值
+  const secret = env.TG_SECRET || 'default-secret'; // 确保在 fetch 中已定义，或直接在此处使用 env.TG_SECRET
+  try {
+    let msg = "";
+    const response = await fetch(`https://ip-api.com/json/${ip}?lang=zh-CN`); // 强制 HTTPS
+    if (response.ok) {
+      const ipInfo = await response.json();
+      msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
+    } else {
+      msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
+    }
 
-	try {
-		let msg = "";
-		const response = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`);
-		if (response.ok) {
-			const ipInfo = await response.json();
-			msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
-		} else {
-			msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
-		}
-
-		const url = `https://api.telegram.org/bot${BotToken}/sendMessage?chat_id=${ChatID}&parse_mode=HTML&text=${encodeURIComponent(msg)}`;
-		return fetch(url, {
-			method: 'GET',
-			headers: {
-				'Accept': 'text/html,application/xhtml+xml,application/xml;',
-				'Accept-Encoding': 'gzip, deflate, br',
-				'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
-			}
-		});
-	} catch (error) {
-		console.error('Error sending message:', error);
-	}
+    // 生成 HMAC 签名
+    const hmac = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg + secret));
+    const signature = Array.from(new Uint8Array(hmac)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const url = `https://api.telegram.org/bot${env.TGTOKEN}/sendMessage?chat_id=${env.TGID}&parse_mode=HTML&text=${encodeURIComponent(msg)}&signature=${signature}`;
+    return fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
+      }
+    });
+  } catch (error) {
+    console.error('Error sending message:', error);
+  }
 }
+
+
 
 function isValidIPv4(address) {
 	const ipv4Regex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
